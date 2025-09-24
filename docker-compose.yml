@@ -1,0 +1,83 @@
+version: '3.8'
+
+services:
+  opensearch:
+    build: .
+    container_name: opensearch-secure
+    environment:
+      - discovery.type=single-node
+      - OPENSEARCH_INITIAL_ADMIN_PASSWORD=KjuupInventam@519UTC
+      - OPENSEARCH_JAVA_OPTS=-Xms4g -Xmx4g
+          
+      # ML Commons configuration
+      - plugins.ml_commons.only_run_on_ml_node=false
+      - plugins.ml_commons.allow_registering_model_via_url=true
+      - plugins.ml_commons.allow_registering_model_via_local_file=true
+      - plugins.ml_commons.connector_access_control_enabled=false
+      - plugins.ml_commons.trusted_connector_endpoints_regex=(file:///usr/share/opensearch/ml_models/.*|http://127\.0\.0\.1:8000/.*)
+      - plugins.ml_commons.native_memory_threshold=99
+      - plugins.ml_commons.max_model_on_node=10
+          
+      # Custom model configuration (parameterized)
+      - MODEL_NAME=paraphrase-multilingual-mpnet-base-v2
+      - MODEL_HF_ID=sentence-transformers/paraphrase-multilingual-mpnet-base-v2
+      - MODEL_EMBED_DIM=768
+      - MODEL_MAX_SEQ_LEN=384
+      - MODEL_DIR=/usr/share/opensearch/ml_models
+          
+      # OpenSearch connection for scripts
+      - OPENSEARCH_HOST=https://localhost:9200
+      - OPENSEARCH_USERNAME=admin
+      - OPENSEARCH_PASSWORD=KjuupInventam@519UTC
+
+    ports:
+      - "9200:9200"
+      - "9600:9600"
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
+      - opensearch-models:/usr/share/opensearch/ml_models
+    mem_limit: 8g
+    mem_reservation: 4g
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    deploy:
+      resources:
+        limits:
+          memory: 8g
+        reservations:
+          memory: 4g
+    restart: always
+    networks:
+      - opensearch-net
+
+  dashboards:
+    image: opensearchproject/opensearch-dashboards:2.15.0
+    container_name: opensearch-dashboards
+    environment:
+      - OPENSEARCH_HOSTS=https://opensearch:9200
+      - OPENSEARCH_USERNAME=admin
+      - OPENSEARCH_PASSWORD=KjuupInventam@519UTC
+      - SERVER_HOST=0.0.0.0
+      - OPENSEARCH_SSL_VERIFICATIONMODE=none
+    ports:
+      - "5601:5601"
+    depends_on:
+      - opensearch
+    restart: always
+    networks:
+      - opensearch-net
+
+networks:
+  opensearch-net:
+    driver: bridge
+
+volumes:
+  opensearch-data:
+    driver: local
+  opensearch-models:
+    driver: local
